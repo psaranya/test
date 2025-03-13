@@ -1,0 +1,190 @@
+@Service("sfIdentityProvider")
+public class SFIdentityProvider {
+    private final FunctionalContextProvider functionalContext;
+    @Autowired
+    public SFIdentityProvider(FunctionalContextProvider functionalContext) {
+        this.functionalContext = functionalContext;
+    }
+    public String getDistributionChannel() {
+        String distributionChannel = EMPTY_STRING;
+        if (hasAdmFunctionalContextProvider() && functionalContext != null) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasDistributionChannel(functionalContext)) {
+                Channel distribChannel = functionalContext.distributionChannel();
+                if (distribChannel.code() != null) {
+                    distributionChannel = distribChannel.code();
+                }
+            }
+        }
+        return distributionChannel;
+    }
+    public String getBrand() {
+        String userBrand = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasUserInfo(functionalContext)) {
+                Brand brand = functionalContext.userInfo().brand();
+                if (brand != null) {
+                    userBrand = brand.code();
+                }
+            }
+        }
+        return userBrand;
+    }
+    public String getPrincipalUserRole() {
+        String roleName = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasUserInfo(functionalContext)) {
+                UserInfo userInfo = functionalContext.userInfo();
+                if (userInfo.role() != null) {
+                    roleName = userInfo.role().code();
+                }
+            }
+        }
+        return roleName;
+    }
+    public String getPrincipalUserId() {
+        String userId = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasUserInfo(functionalContext)) {
+                userId = functionalContext.userInfo().userId();
+            }
+        }
+        return userId;
+    }
+    public String getPrincipalUserIdType() {
+        String idType = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasUserInfo(functionalContext)) {
+                UserInfo userInfo = functionalContext.userInfo();
+                if (userInfo.useridType() != null) {
+                    idType = userInfo.useridType().value();
+                }
+            }
+        }
+        return idType;
+    }
+    public String getPrincipalUserBrand() {
+        String userBrand = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasUserInfo(functionalContext)) {
+                UserInfo userInfo = functionalContext.userInfo();
+                if (userInfo.brand() != null) {
+                    userBrand = userInfo.brand().code();
+                }
+            }
+        }
+        return userBrand;
+    }
+    public String getPrincipalUserCountry() {
+        String userCountry = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasUserInfo(functionalContext)) {
+                UserInfo userInfo = functionalContext.userInfo();
+                if (userInfo.userLocale() != null) {
+                    userCountry = userInfo.userLocale().getCountry();
+                }
+            }
+        }
+        return userCountry;
+    }
+    public String getPrincipalUserLanguage() {
+        String userLanguage = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasUserInfo(functionalContext)) {
+                UserInfo userInfo = functionalContext.userInfo();
+                if (userInfo.userLocale() != null) {
+                    userLanguage = userInfo.userLocale().getLanguage();
+                }
+            }
+        }
+        return userLanguage.toUpperCase();
+    }
+
+    public String getPrincipalCustomerPSP() {
+        String customerPSP = EMPTY_STRING;
+            if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+                FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+                if (hasCustomerInfo(functionalContext)) {
+                    CustomerInfo customerInfo = functionalContext.customerInfo().get();
+                    if (customerInfo.psp().isPresent()) {
+                        customerPSP = customerInfo.psp().get().value();
+                    }
+                }
+            }
+        return customerPSP;
+    }
+    public String getPrincipalCustomerSmid() {
+        String smid = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasCustomerInfo(functionalContext)) {
+                CustomerInfo customerInfo = functionalContext.customerInfo().get();
+                if (customerInfo.smid().isPresent()) {
+                    smid = customerInfo.smid().get().value();
+                }
+            }
+        }
+        return smid;
+    }
+
+    public String getPrincipalCustomerLanguage() {
+        String language = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasCustomerInfo(functionalContext)) {
+                CustomerInfo customerInfo = functionalContext.customerInfo().get();
+                if (customerInfo.language() != null) {
+                    language = customerInfo.language().toUpperCase();
+                }
+            }
+        }
+        return language;
+    }
+    public String getEntityId() {
+        String entityId = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasEntityInfo(functionalContext)) {
+                AgencyEntityId entityInfo = functionalContext.entityInfo().get();
+                if (entityInfo.id() != null) {
+                    entityId = entityInfo.id();
+                }
+            }
+        }
+        return entityId;
+    }
+    public String getEntityType() {
+        String entityType = EMPTY_STRING;
+        if (functionalContext != null && hasAdmFunctionalContextProvider()) {
+            FunctionalContext functionalContext = this.functionalContext.getFunctionalContext().get();
+            if (hasEntityInfo(functionalContext)) {
+                AgencyEntityId entityInfo = functionalContext.entityInfo().get();
+                entityType = entityInfo.idType();
+            }}
+              return entityType;
+    }
+    private boolean hasAdmFunctionalContextProvider() {
+        return functionalContext != null && functionalContext.getFunctionalContext().isPresent();
+    }
+    private boolean hasUserInfo(FunctionalContext functionalContext) {
+        return functionalContext.userInfo() != null;
+    }
+    private boolean hasCustomerInfo(FunctionalContext functionalContext) {
+        return (functionalContext.customerInfo() != null && functionalContext.customerInfo().isPresent());
+    }
+
+    private boolean hasEntityInfo(FunctionalContext functionalContext) {
+        return (functionalContext.entityInfo() != null && functionalContext.entityInfo().isPresent());
+    }
+
+    private boolean hasDistributionChannel(FunctionalContext functionalContext) {
+        return (functionalContext.distributionChannel() != null);
+    }
+}
