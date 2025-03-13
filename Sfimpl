@@ -1,0 +1,61 @@
+@Component
+public class SamlAuthenticationFilter extends OncePerRequestFilter {
+
+    private final FunctionalContextProvider functionalContextProvider;
+
+    public SamlAuthenticationFilter(FunctionalContextProvider functionalContextProvider) {
+        this.functionalContextProvider = functionalContextProvider;
+    }
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, 
+                                    FilterChain filterChain) throws ServletException, IOException {
+        String samlToken = request.getHeader("mibsecurityprincipal");
+
+        if (samlToken != null && !samlToken.isEmpty()) {
+            FunctionalContext context = parseSamlToken(samlToken);
+            functionalContextProvider.setFunctionalContext(context);
+        }
+
+        filterChain.doFilter(request, response);
+    }
+
+    private FunctionalContext parseSamlToken(String samlToken) {
+        // TODO: Implement SAML token parsing logic to extract user details
+        FunctionalContext functionalContext = new FunctionalContext();
+        // Populate functionalContext with extracted user info
+        return functionalContext;
+    }
+}
+
+
+@Component
+public class FunctionalContextProvider {
+    private final ThreadLocal<FunctionalContext> functionalContext = new ThreadLocal<>();
+
+    public Optional<FunctionalContext> getFunctionalContext() {
+        return Optional.ofNullable(functionalContext.get());
+    }
+
+    public void setFunctionalContext(FunctionalContext context) {
+        functionalContext.set(context);
+    }
+
+    public void clear() {
+        functionalContext.remove();
+    }
+}
+
+
+@Configuration
+public class SecurityConfig {
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, SamlAuthenticationFilter samlFilter) throws Exception {
+        return http
+            .csrf().disable()
+            .addFilterBefore(samlFilter, UsernamePasswordAuthenticationFilter.class)
+            .authorizeHttpRequests(auth -> auth.anyRequest().authenticated())
+            .build();
+    }
+}
