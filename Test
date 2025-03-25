@@ -1,1 +1,57 @@
-test
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.MockitoAnnotations;
+import static org.mockito.Mockito.*;
+import static org.assertj.core.api.Assertions.*;
+
+class CashUnitStockContextTest {
+
+    private CashUnitStockContext cashUnitStockContext;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+        cashUnitStockContext = new CashUnitStockContext(); // No need for @Mock since it's a Lombok data class
+    }
+
+    @Test
+    void testGettersAndSetters() {
+        // Set values
+        cashUnitStockContext.setCashUnitStockId(1001L);
+        cashUnitStockContext.setCashUnitStageName("IN_USE");
+        cashUnitStockContext.setCashUnitId(5001L);
+
+        // Validate using AssertJ
+        assertThat(cashUnitStockContext.getCashUnitStockId()).isEqualTo(1001L);
+        assertThat(cashUnitStockContext.getCashUnitStageName()).isEqualTo("IN_USE");
+        assertThat(cashUnitStockContext.getCashUnitId()).isEqualTo(5001L);
+    }
+
+    @Test
+    void testEqualsAndHashCode() {
+        // Create two identical objects
+        CashUnitStockContext context1 = new CashUnitStockContext();
+        context1.setCashUnitStockId(1001L);
+        context1.setCashUnitStageName("IN_USE");
+        context1.setCashUnitId(5001L);
+
+        CashUnitStockContext context2 = new CashUnitStockContext();
+        context2.setCashUnitStockId(1001L);
+        context2.setCashUnitStageName("IN_USE");
+        context2.setCashUnitId(5001L);
+
+        // Check equality
+        assertThat(context1).isEqualTo(context2);
+        assertThat(context1.hashCode()).isEqualTo(context2.hashCode());
+    }
+
+    @Test
+    void testToString() {
+        cashUnitStockContext.setCashUnitStockId(1001L);
+        cashUnitStockContext.setCashUnitStageName("IN_USE");
+        cashUnitStockContext.setCashUnitId(5001L);
+
+        // Verify that toString() contains the field values
+        assertThat(cashUnitStockContext.toString()).contains("1001", "IN_USE", "5001");
+    }
+}
