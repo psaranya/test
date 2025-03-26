@@ -1,0 +1,129 @@
+UC3 Withdrawal booking 
+Primary Actor(s): CAFR ,Secondary Actor(s): Branch employee handling cash in EBE 
+Description: Execute a withdrawal booking transaction and adapt the cash stock. 
+Preconditions: Cash stock must be open (UC1 Cash Stock open)  
+
+ACTIONS  
+1.KASH-ta02 receives via the API call cash-stock-management/RequestCashStockbooking with the following parameters: 
+CashStockID ,CashStockSessionID ,Employee data ,EmployeeRefogId  ,EmployeeLastName ,EmployeeFirstName 
+
+List of Cash Unit Stock 
+CashUnitStockQuantity,CashUnitId ,Cash Stock Operation ,CashStockOperationTypeName à “CUSTOMER_WITHDRAWAL_BOOKING” 
+CashStockOperationComment ,CashStockOperationAmount ,CashStockOperationCurrencyCode ,Booking request data ,transactionId 
+remittanceMessage,PartyId ,PartyName ,UnitRobiId ,IbanNumber ,Force ,transactionTimestamp 
+
+2.KASH-ta02 validates the parameters receives: 
+CashStockId must exist.  
+CashStockStatusName of the CashStockId provided must be “OPEN”. 
+CashStockSessionId must exist. 
+CashStockSessionStatusName of last Cash Stock Session registered for the CashStockId must be “OPEN”. 
+CashUnitId provided must exist. 
+Total amount of the list of Cash Unit Stock is corresponding with the CashStockOperationAmount. Example 2 notes of 50€ must have a CashStockOperationAmount = 100€. 
+Cash Unit Stock link to the CashUnitId and CashStockSessionId must be in a “WORKING” stage. 
+The CashStockOperationAmount must be lower or equal than the value defined in the application. The application will define a maximum amount for all CashStockOperation CUSTOMER_WITHDRAWAL_BOOKING. This maximum amount isn’t currently defines but should be easily adaptable in production (via table CASH_STOCK_OPERATION_TYPE_VALUE).   
+Employee data provided must match with the SAML. 
+Branch (UnitRobiId) of the Cash Stock provided must match with the SAML.  
+The CashUnitStockQuantity of the CashUnitId provided must be equal to or lower than the CashUnitStockQuantity stored in the “WORKING” stage. Example: If the cash stock of the branch contains 2 notes of 50€, we cannot allow a withdrawal of 3 notes of 50€. 
+Employee data provided must be the same with the Cash Stock Session active.  
+CashStockOperationComment maximum length of the text can be 50 character. 
+
+[Exception flow E2: Functional validation fails] 
+3.KASH-ta02 will call /cash-account/booking-request-management/v1.1/direct-booking to perform a withdrawal on the customer account. 
+Mapping data: 
+TransactionId will be transactionId on OASE, 
+CashStockOperationTypeName  will be transactionType on OASE 
+depositType will  be static base on the flow OTHER 
+IbanNumber will be accountNumber on OASE 
+CashStockOperationAmount will be amount on OASE 
+CashStockOperationCurrencyCode will be currency on OASE 
+partyId will be psp on OASE 
+remittanceMessage will be remittanceMessage on OASE 
+CashStockOperationComment will be remittanceMessageFromAgent  on OASE 
+CreateDatetime will be transactionTimestamp on OASE 
+UnitRobiId will be branchId on OASE 
+employeeRobiId will be userId on OASE 
+
+4.Create Cash Unit Stock Operation corresponding for the OUT operations.  
+5.Update CashUnitStockQuantity of Cash Unit Stock in stage "WORKING"  
+6.Update CashStockAmount of Cash Stock with the result of subtracting the CashStockOperationAmount from the current CashStockAmount. 
+7.Create a Cash Stock Operation with the following parameters: 
+CashStockSessionId with the value of the step 1 . 
+CashStockId with the value receives in step 1. 
+CashStockOperationTypeName -> CUSTOMER_WITHDRAWAL_BOOKING 
+CashStockOperationComment with the value receives in step 1. 
+CashStockOperationStatusName must be “EXECUTED”. 
+CashStockOperationAmount with the value receives in step 1. 
+CashStockOperationCurrency must be “EUR” 
+CashStockOperationCreationDatetime must be current datetime. 
+EmployeeRefogId with the value receives in step 1. 
+EmployeeLastName with the value receives in step 1. 
+EmployeeFirstName with the value receives in step 1. 
+
+8.KASH-ta02 returns the response with the following information: 
+CashStockId,CashStockSessionId ,CashStockOperationId ,CashStockOperationStatusName ,transactionId ,remittanceMessage ,transactionDatetime ,force 
+Notes: 
+Postcondition(s): Withdrawal executed, and cash stock adapted. 
+UC4 Deposit booking 
+Primary Actor(s): CAFR 
+Secondary Actor(s): Branch employee handling cash in EBE 
+Description: Execute a deposit booking transaction and adapt the cash stock. 
+Preconditions: Cash stock must be open (UC1 Cash Stock open) 
+ 
+ACTIONS  
+1.KASH-ta02 receives via the API call cash-stock-management/RequestCashStockbooking with the following parameters: 
+CashStockID,CashStockSessionID ,Employee data ,EmployeeRefogId,EmployeeLastName ,EmployeeFirstName ,
+1.1.List of Cash Unit Stock -CashUnitStockQuantity ,CashUnitId 
+Cash Stock Operation ,
+CashStockOperationTypeName à “CUSTOMER_DEPOSIT_BOOKING” 
+CashStockOperationComment ,CashStockOperationAmount ,CashStockOperationCurrencyCode ,Booking request data ,transactionId ,remittanceMessage 
+PartyId ,PartyName ,UnitRobiId ,IbanNumber ,Force ,transactionTimestamp 
+
+2.KASH-ta02 validates the parameters receives: 
+CashStockId must exist.  
+CashStockStatusName of the CashStockId provided must be “OPEN”. 
+CashStockSessionId must exist. 
+CashStockSessionStatusName of last Cash Stock Session registered for the CashStockId must be “OPEN”. 
+CashUnitId provided must exist. 
+Total amount of the list of Cash Unit Stock is corresponding with the CashStockOperationAmount. Example 2 notes of 50€ must have a CashStockOperationAmount = 100€. 
+Cash Unit Stock link to the CashUnitId and CashStockSessionId must be in a “WORKING” stage. 
+The CashStockOperationAmount must be lower or equal than the value defined in the application. The application will define a maximum amount for all CashStockOperation CUSTOMER_DEPOSIT_BOOKING. This maximum amount is currently 500.000€ but should be easily adaptable in production (via table CASH_STOCK_OPERATION_TYPE_VALUE).   
+CashStockOperationComment must be maximum length of the text can be 50 character. 
+Employee data provided must match with the SAML. 
+Branch (UnitRobiId) of the Cash Stock provided must match with the SAML.  
+Employee data provided must be the same with the Cash Stock Session active.  
+CashStockOperationComment maximum length of the text can be 50 character. 
+
+3.KASH-ta02 will call /cash-account/booking-request-management/v1.1/direct-booking on OASE to perform a deposit on the customer account . 
+Mapping data: 
+TransactionId will be transactionId on OASE, 
+CashStockOperationTypeName  will be transactionType on OASE 
+depositType will  be static base on the flow NORMAL 
+IbanNumber will be accountNumber on OASE 
+CashStockOperationAmount will be amount on OASE 
+Amount represented in cent (1€ = 100). 
+CashStockOperationCurrencyCode will be currency on OASE 
+partyId will be psp on OASE 
+remittanceMessage will be remittanceMessage on OASE 
+CashStockOperationComment will be remittanceMessageFromAgent  on OASE 
+transactionTimestamp will be transactionTimestamp on OASE 
+UnitRobiId will be branchId on OASE 
+employeeRobiId will be userId on OASE 
+
+4.Create Cash Unit Stock Operation corresponding for the IN operations.  
+5.Update CashStockNumberOfUnit of Cash Unit Stock in stage "WORKING"  
+6.Update CashStockAmount of Cash Stock with the result of adding the CashStockOperationAmount to the current CashStockAmount. 
+7.Create a Cash Stock Operation  with paramters: 
+• CashStockSessionId with the value of the step 1 . 
+• CashStockId with the value receives in step 1. 
+• CashStockOperationTypeName -> CUSTOMER_DEPOSIT_BOOKING 
+• CashStockOperationComment with the value receives in step 1. 
+• CashStockOperationStatusName must be “EXECUTED”. 
+• CashStockOperationAmount with the value receives in step 1. 
+• CashStockOperationCurrency must be “EUR” 
+• CashStockOperationCreationDatetime must be current datetime. 
+• EmployeeRefogId with the value receives in step 1. 
+• EmployeeLastName with the value receives in step 1. 
+• EmployeeFirstName with the value receives in step 1. 
+
+8.KASH-ta02 returns the response with the following information: 
+CashStockId ,CashStockSessionId ,CashStockOperationId ,CashStockOperationStatusName ,transactionId ,remittanceMessage ,transactionDatetime ,force
