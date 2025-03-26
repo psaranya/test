@@ -1,0 +1,237 @@
+@Service
+@Transactional
+@RequiredArgsConstructor
+public class CashStockServiceImpl implements CashStockService {
+
+    private final CashStockRepository cashStockRepository;
+    private final CashStockSessionRepository cashStockSessionRepository;
+    private final CashUnitRepository cashUnitRepository;
+    private final CashUnitStockRepository cashUnitStockRepository;
+    private final CashStockOperationRepository cashStockOperationRepository;
+    private final CashUnitStockOperationRepository cashUnitStockOperationRepository;
+    private final EmployeeRepository employeeRepository;
+    private final PartyRepository partyRepository;
+    private final CashStockBookingRequestRepository bookingRequestRepository;
+    private final CashStockOperationTypeValueRepository operationTypeValueRepository;
+    private final CashAccountClient cashAccountClient;
+
+    @Override
+    public CashStockOperationResponse processWithdrawalBooking(CashStockBookingRequest request) {
+        // Validate the withdrawal request
+        validateCashStockOperation(request, "CUSTOMER_WITHDRAWAL_BOOKING");
+        
+        // Perform account withdrawal via OASE
+        AccountBookingResponse accountResponse = performAccountWithdrawal(request);
+        
+        // Process cash stock updates
+        return processCashOperation(request, accountResponse, "CUSTOMER_WITHDRAWAL_BOOKING", "OUT");
+    }
+
+    @Override
+    public CashStockOperationResponse processDepositBooking(CashStockBookingRequest request) {
+        // Validate the deposit request
+        validateCashStockOperation(request, "CUSTOMER_DEPOSIT_BOOKING");
+        
+        // Perform account deposit via OASE
+        AccountBookingResponse accountResponse = performAccountDeposit(request);
+        
+        // Process cash stock updates
+        return processCashOperation(request, accountResponse, "CUSTOMER_DEPOSIT_BOOKING", "IN");
+    }
+
+    @Override
+    public void validateCashStockOperation(CashStockBookingRequest request, String operationType) {
+        // 1. Validate CashStock exists and is OPEN
+        CashStock cashStock = cashStockRepository.findById(request.getCashStockId())
+            .orElseThrow(() -> new CashStockException("CashStock not found"));
+        
+        if (!"OPEN".equals(cashStock.getStatus())) {
+            throw new CashStockException("CashStock must be OPEN");
+        }
+
+        // 2. Validate CashStockSession exists and is OPEN
+        CashStockSession session = cashStockSessionRepository.findById(request.getCashStockSessionId())
+            .orElseThrow(() -> new CashStockException("CashStockSession not found"));
+        
+        if (!"OPEN".equals(session.getStatus())) {
+            throw new CashStockException("CashStockSession must be OPEN");
+        }
+
+        // 3. Validate last session is OPEN
+        CashStockSession lastSession = cashStockSessionRepository.findTopByCashStockIdOrderByOpenDatetimeDesc(request.getCashStockId())
+            .orElseThrow(() -> new CashStockException("No active session found"));
+        
+        if (!"OPEN".equals(lastSession.getStatus()) || !lastSession.getId().equals(request.getCashStockSessionId())) {
+            throw new CashStockException("Last registered session must be OPEN");
+        }
+
+        // 4. Validate employee matches session employee
+        if (!session.getEmployeeId().equals(request.getEmployeeRefogId())) {
+            throw new CashStockException("Employee doesn't match session employee");
+        }
+
+        // 5. Validate cash units exist and quantities are correct
+        BigDecimal totalAmount = BigDecimal.ZERO;
+        for (CashUnitStockRequest unitRequest : request.getCashUnitStocks()) {
+            CashUnit cashUnit = cashUnitRepository.findById(unitRequest.getCashUnitId())
+                .orElseThrow(() -> new CashStockException("CashUnit not found: " + unitRequest.getCashUnitId()));
+            
+            totalAmount = totalAmount.add(cashUnit.getValueAmount().multiply(BigDecimal.valueOf(unitRequest.getQuantity())));
+            
+            // Check if cash unit stock exists in WORKING stage
+            CashUnitStock stock = cashUnitStockRepository.findByCashUnitIdAndCashStockSessionIdAndStage(
+                unitRequest.getCashUnitId(), 
+                request.getCashStockSessionId(), 
+                "WORKING")
+                .orElseThrow(() -> new CashStockException("CashUnitStock not in WORKING stage"));
+            
+            // For withdrawal, check available quantity
+            if ("CUSTOMER_WITHDRAWAL_BOOKING".equals(operationType) && stock.getQuantity() < unitRequest.getQuantity()) {
+                throw new CashStockException("Insufficient quantity for CashUnit: " + unitRequest.getCashUnitId());
+            }
+        }
+
+        // 6. Validate total amount matches operation amount
+        if (totalAmount.compareTo(request.getCashStockOperationAmount()) != 0) {
+            throw new CashStockException("Total amount doesn't match sum of cash units");
+        }
+
+        // 7. Validate operation type limits
+        CashStockOperationTypeValue operationTypeValue = operationTypeValueRepository.findByName(operationType)
+            .orElseThrow(() -> new CashStockException("Operation type not configured"));
+        
+        if (request.getCashStockOperationAmount().compareTo(BigDecimal.valueOf(operationTypeValue.getMaxAmountLimitation())) > 0) {
+            throw new CashStockException("Amount exceeds maximum limit for " + operationType);
+        }
+
+        // 8. Validate comment length
+        if (request.getCashStockOperationComment() != null && request.getCashStockOperationComment().length() > 50) {
+            throw new CashStockException("Comment exceeds maximum length of 50 characters");
+        }
+    }
+
+    private AccountBookingResponse performAccountWithdrawal(CashStockBookingRequest request) {
+        AccountBookingRequest accountRequest = new AccountBookingRequest();
+        accountRequest.setTransactionId(request.getTransactionId());
+        accountRequest.setTransactionType("CUSTOMER_WITHDRAWAL_BOOKING");
+        accountRequest.setDepositType("OTHER");
+        accountRequest.setAccountNumber(request.getIbanNumber());
+        accountRequest.setAmount(request.getCashStockOperationAmount());
+        accountRequest.setCurrency(request.getCashStockOperationCurrencyCode());
+        accountRequest.setPsp(request.getPartyId());
+        accountRequest.setRemittanceMessage(request.getRemittanceMessage());
+        accountRequest.setRemittanceMessageFromAgent(request.getCashStockOperationComment());
+        accountRequest.setTransactionTimestamp(request.getTransactionTimestamp());
+        accountRequest.setBranchId(request.getUnitRobiId());
+        accountRequest.setUserId(request.getEmployeeRefogId());
+        
+        return cashAccountClient.performDirectBooking(accountRequest);
+    }
+
+    private AccountBookingResponse performAccountDeposit(CashStockBookingRequest request) {
+        AccountBookingRequest accountRequest = new AccountBookingRequest();
+        accountRequest.setTransactionId(request.getTransactionId());
+        accountRequest.setTransactionType("CUSTOMER_DEPOSIT_BOOKING");
+        accountRequest.setDepositType("NORMAL");
+        accountRequest.setAccountNumber(request.getIbanNumber());
+        accountRequest.setAmount(request.getCashStockOperationAmount());
+        accountRequest.setCurrency(request.getCashStockOperationCurrencyCode());
+        accountRequest.setPsp(request.getPartyId());
+        accountRequest.setRemittanceMessage(request.getRemittanceMessage());
+        accountRequest.setRemittanceMessageFromAgent(request.getCashStockOperationComment());
+        accountRequest.setTransactionTimestamp(request.getTransactionTimestamp());
+        accountRequest.setBranchId(request.getUnitRobiId());
+        accountRequest.setUserId(request.getEmployeeRefogId());
+        
+        return cashAccountClient.performDirectBooking(accountRequest);
+    }
+
+    private CashStockOperationResponse processCashOperation(
+        CashStockBookingRequest request, 
+        AccountBookingResponse accountResponse,
+        String operationType,
+        String stockOperationAction) {
+        
+        // 1. Create booking request record
+        CashStockBookingRequestEntity bookingRequest = new CashStockBookingRequestEntity();
+        bookingRequest.setStatus("EXECUTED");
+        bookingRequest.setTransactionId(request.getTransactionId());
+        bookingRequest.setRemittanceMessage(request.getRemittanceMessage());
+        bookingRequest = bookingRequestRepository.save(bookingRequest);
+        
+        // 2. Create cash stock operation
+        CashStockOperation operation = new CashStockOperation();
+        operation.setCashStockOperationTypeValueId(
+            operationTypeValueRepository.findByName(operationType)
+                .orElseThrow(() -> new CashStockException("Operation type not found"))
+                .getId());
+        operation.setCashStockSessionId(request.getCashStockSessionId());
+        operation.setCashStockId(request.getCashStockId());
+        operation.setEmployeeId(request.getEmployeeRefogId());
+        operation.setPartyId(request.getPartyId());
+        operation.setCashStockBookingRequestId(bookingRequest.getId());
+        operation.setCommentText(request.getCashStockOperationComment());
+        operation.setStatus("EXECUTED");
+        operation.setAmount(request.getCashStockOperationAmount().longValue());
+        operation.setCurrencyCode(request.getCashStockOperationCurrencyCode());
+        operation = cashStockOperationRepository.save(operation);
+        
+        // 3. Process cash unit stock operations and update quantities
+        for (CashUnitStockRequest unitRequest : request.getCashUnitStocks()) {
+            // Create cash unit stock operation
+            CashUnitStockOperation stockOperation = new CashUnitStockOperation();
+            stockOperation.setActionName(stockOperationAction);
+            stockOperation.setQuantity(unitRequest.getQuantity());
+            stockOperation.setCashStockOperationId(operation.getId());
+            stockOperation.setCashUnitId(unitRequest.getCashUnitId());
+            
+            // Get the current stock
+            CashUnitStock stock = cashUnitStockRepository.findByCashUnitIdAndCashStockSessionIdAndStage(
+                unitRequest.getCashUnitId(), 
+                request.getCashStockSessionId(), 
+                "WORKING")
+                .orElseThrow(() -> new CashStockException("CashUnitStock not found"));
+            
+            stockOperation.setCashUnitStockId(stock.getId());
+            cashUnitStockOperationRepository.save(stockOperation);
+            
+            // Update stock quantity
+            if ("OUT".equals(stockOperationAction)) {
+                stock.setQuantity(stock.getQuantity() - unitRequest.getQuantity());
+            } else {
+                stock.setQuantity(stock.getQuantity() + unitRequest.getQuantity());
+            }
+            cashUnitStockRepository.save(stock);
+        }
+        
+        // 4. Update cash stock amount
+        CashStock cashStock = cashStockRepository.findById(request.getCashStockId())
+            .orElseThrow(() -> new CashStockException("CashStock not found"));
+        
+        if ("OUT".equals(stockOperationAction)) {
+            cashStock.setAmount(cashStock.getAmount() - request.getCashStockOperationAmount().longValue());
+        } else {
+            cashStock.setAmount(cashStock.getAmount() + request.getCashStockOperationAmount().longValue());
+        }
+        cashStockRepository.save(cashStock);
+        
+        // 5. Prepare and return response
+        CashStockOperationResponse response = new CashStockOperationResponse();
+        response.setCashStockId(request.getCashStockId());
+        response.setCashStockSessionId(request.getCashStockSessionId());
+        response.setCashStockOperationId(operation.getId());
+        response.setCashStockOperationStatusName(operation.getStatus());
+        response.setTransactionId(request.getTransactionId());
+        response.setRemittanceMessage(request.getRemittanceMessage());
+        response.setTransactionDatetime(operation.getCreationDatetime());
+        response.setForce(request.getForce());
+        
+        return response;
+    }
+}
+
+public interface CashStockService {
+    CashStockOperationResponse processWithdrawalBooking(CashStockBookingRequest request);
+    CashStockOperationResponse processDepositBooking(CashStockBookingRequest request);
+    void validateCashStockOperation(CashStockBookingRequest request, String operationType);
+}
