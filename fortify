@@ -1,0 +1,22 @@
+ @Override
+    @GetMapping(value="/cash-management/cash-unit-stock/v1/cash-unit-groups")
+    public ResponseEntity<?> getCashUnitGroups(@RequestParam(required = false) CashUnitIdList cashUnitIdList,
+                                               @RequestParam(required = false) CashUntiGroupNameList cashUntiGroupNameList,
+                                               @RequestParam(required = false) CashUntiGroupPhysicalQuantityList cashUntiGroupPhysicalQuantityList) {
+        try {
+            log.error(securityContextProvider.get().toString());
+            log.error(securityContextProvider.get().getOeMappedIds().toString());
+            CashUnitGroupResponse cashUnitGroupResponse = cashUnitService.getCashUnitGroups(cashUnitIdList,cashUntiGroupNameList,cashUntiGroupPhysicalQuantityList);
+            if (cashUnitGroupResponse.getCashUnitGroupContextList().isEmpty()) {
+                return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+            }
+            return ResponseEntity.ok(cashUnitGroupResponse);
+        } catch (CashException exception) {
+            return exceptionMapper.convertKashExceptionToErrorMessage(exception);
+        }
+    }
+
+    public class CashUnitIdList extends ArrayList<String> implements Serializable {
+  private static final long serialVersionUID = 1L;
+
+}
